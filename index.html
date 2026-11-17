@@ -139,7 +139,7 @@
   <div class="card" id="importCard" hidden>
     <form id="importForm">
       <label for="titleUrl">رابط العمل أو الحلقة</label>
-      <input id="titleUrl" class="ltr" type="url" inputmode="url" placeholder="https://…" required>
+      <input id="titleUrl" class="ltr" type="text" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://…" required>
       <p class="hint">الصق الرابط من فاصل. الاسم والغلاف والحلقات تطلع تلقائيًا.</p>
       <button class="go" id="inspectTitle" type="submit">عرض التفاصيل</button>
     </form>
@@ -273,22 +273,28 @@ function importMessage(text, error = false) {
 
 const pendingImports = new Map();
 
+function findImportUrl(value) {
+  const source = value.replace(/[\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g, '');
+  for (const match of source.matchAll(/https:\/\/[^\s<>"'«»]+/gi)) {
+    let url;
+    try { url = new URL(match[0].replace(/[)\]}.,!?،؛؟]+$/u, '')); } catch { continue; }
+    if (!['faselplus.me', 'www.faselplus.me'].includes(url.hostname) || url.username || url.password || url.port || !/^\/(title|watch)\/\d+\/?$/.test(url.pathname)) continue;
+    const params = new URLSearchParams();
+    if (url.pathname.startsWith('/watch/')) {
+      for (const name of ['season_id', 'episode_id']) {
+        const id = url.searchParams.get(name);
+        if (/^\d+$/.test(id || '')) params.set(name, id);
+      }
+    }
+    return url.origin + url.pathname + (params.size ? '?' + params.toString() : '');
+  }
+  return '';
+}
+
 function importRequest(action, body) {
   if (LOCAL) return api(`/import/${action}`, {method: 'POST', body: JSON.stringify(body)});
-  let url;
-  try { url = new URL(body.url.trim()); } catch { return Promise.reject(Error('ألصق رابط صفحة العمل أو الحلقة من فاصل.')); }
-  if (url.protocol !== 'https:' || !['faselplus.me', 'www.faselplus.me'].includes(url.hostname) || url.username || url.password || url.port || !/^\/(title|watch)\/\d+\/?$/.test(url.pathname)) {
-    return Promise.reject(Error('ألصق رابط صفحة العمل أو الحلقة من فاصل. للملف المباشر استخدم «إضافة روابط».'));
-  }
-  const params = new URLSearchParams();
-  if (url.pathname.startsWith('/watch/')) {
-    for (const name of ['season_id', 'episode_id']) {
-      if (/^\d+$/.test(url.searchParams.get(name) || '')) params.set(name, url.searchParams.get(name));
-    }
-  }
-  const clean = url.origin + url.pathname + (params.size ? '?' + params.toString() : '');
   const id = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
-  const request = {import: {id, action, body: {...body, url: clean}}};
+  const request = {import: {id, action, body}};
   if (new TextEncoder().encode(JSON.stringify(request)).length > 3800) {
     return Promise.reject(Error('اختيار الحلقات كبير. أرسلها على دفعتين.'));
   }
@@ -403,8 +409,14 @@ function showImport(details) {
   showImportSelection();
 }
 
-async function inspectTitle(url, season = '') {
+async function inspectTitle(value, season = '') {
   if (importBusy) return;
+  const url = findImportUrl(value);
+  if (!url) {
+    importMessage('ما لقينا رابط عمل أو حلقة من فاصل في النص. للملف المباشر استخدم «إضافة روابط».', true);
+    return;
+  }
+  if (!season) $('titleUrl').value = url;
   importBusy = true;
   importDetails = null;
   $('importResult').hidden = true;
@@ -426,10 +438,15 @@ async function inspectTitle(url, season = '') {
 $('importCover').onerror = () => { $('importCover').hidden = true; $('importSummary').classList.add('no-cover'); };
 $('importForm').onsubmit = event => { event.preventDefault(); inspectTitle($('titleUrl').value); };
 $('titleUrl').oninput = () => { importDetails = null; $('importResult').hidden = true; importMessage(''); };
-$('titleUrl').onpaste = () => setTimeout(() => {
-  const field = $('titleUrl');
-  if (field.checkValidity()) inspectTitle(field.value);
-}, 0);
+$('titleUrl').onpaste = event => {
+  const url = findImportUrl(event.clipboardData?.getData('text/plain') || '');
+  if (url) {
+    event.preventDefault();
+    inspectTitle(url);
+  } else {
+    setTimeout(() => { if ($('titleUrl').value.trim()) inspectTitle($('titleUrl').value); }, 0);
+  }
+};
 $('importSeason').onchange = () => { if (importDetails) inspectTitle(importDetails.url, $('importSeason').value); };
 $('importChoice').onchange = () => { $('episodeSelection').value = ''; showImportSelection(); };
 $('episodeSelection').oninput = showImportSelection;
