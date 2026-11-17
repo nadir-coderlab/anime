@@ -48,6 +48,22 @@
   .done .state { color:var(--ok); } .done .bar i { background:var(--ok); }
   .failed .state { color:var(--bad); }
   .acts button { background:#ffffff14; color:var(--text); border:0; border-radius:9px; padding:6px 10px; font:inherit; font-size:13px; margin-inline-start:6px; }
+  .series { background:var(--card); border-radius:14px; margin-bottom:10px; overflow:hidden; }
+  .series > .head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:13px 14px; cursor:pointer; }
+  .series .title { font-weight:800; }
+  .series .meta { color:var(--muted); font-size:13px; }
+  .series .chev { color:var(--muted); transition:transform .2s; }
+  .series.open .chev { transform:rotate(-90deg); }
+  .series .body { display:none; border-top:1px solid #ffffff10; padding:6px 14px 12px; }
+  .series.open .body { display:block; }
+  .ep { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #ffffff0a; font-size:15px; }
+  .ep:last-child { border-bottom:0; }
+  .ep .w { color:var(--ok); font-size:13px; }
+  .ep .sz { color:var(--muted); font-size:13px; }
+  .bulk { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 6px; }
+  .del { background:#ff7a6b22; color:var(--bad); border:0; border-radius:9px; padding:7px 11px; font:inherit; font-size:13px; font-weight:700; }
+  .del:disabled { opacity:.45; }
+  .gone { opacity:.4; pointer-events:none; }
   .msg { background:var(--card); border-radius:16px; padding:18px; color:var(--muted); }
   .toast { position:fixed; inset-inline:18px; bottom:max(18px, env(safe-area-inset-bottom)); background:var(--ok); color:#0b1a0e; padding:14px 16px;
            border-radius:14px; font-weight:700; transform:translateY(150%); transition:transform .3s; }
@@ -96,6 +112,9 @@
 
   <h2>التحميلات <span><small id="free"></small> <button id="clear" hidden>امسح الخالصة</button></span></h2>
   <div id="jobs"></div>
+
+  <h2>على البوكس <span><small id="libInfo"></small> <button id="libRefresh">تحديث</button></span></h2>
+  <div id="lib"><div class="msg">يجيب قائمة الملفات من البوكس…</div></div>
 </div>
 <div id="nokey" class="msg" hidden>صوّر الباركود اللي في التلفزيون: انمي ← «أضف من الجوال». بعدها الصفحة تشتغل من أي مكان.</div>
 <div class="toast" id="toast"></div>
@@ -120,6 +139,7 @@ function command(msg) {
     if (msg.add) return api('/add', { method: 'POST', body: JSON.stringify(msg.add) });
     if (msg.job) return api(`/job?id=${msg.job.id}&do=${msg.job.do}`, { method: 'POST' });
     if (msg.clear) return api('/clear', { method: 'POST' });
+    if (msg.del) return api('/del', { method: 'POST', body: JSON.stringify(msg.del) }).then(r => { loadLib(); return r; });
     return Promise.resolve({});
   }
   return fetch(NTFY, { method: 'POST', body: JSON.stringify(msg) }).then(r => { if (!r.ok) throw new Error('ntfy ' + r.status); return {}; });
@@ -207,6 +227,67 @@ function render(s) {
 }
 $('clear').onclick = () => command({ clear: 1 }).then(poll);
 
+// ---------- اللي على البوكس: عرض وحذف ----------
+let lib = null, libAt = 0;
+const openSeries = new Set(JSON.parse(localStorage.getItem('animeOpen') || '[]'));
+const epName = (e) => e.e != null ? `الحلقة ${e.e}` + (e.s > 1 ? ` · الموسم ${e.s}` : '') : e.n;
+function count(n) { return n === 1 ? 'حلقة وحدة' : n === 2 ? 'حلقتين' : `${n} ${n <= 10 ? 'حلقات' : 'حلقة'}`; }
+
+function del(what, label, el) {
+  if (!confirm(`تحذف ${label} من البوكس؟\nالملفات تنحذف نهائياً وما ترجع.`)) return;
+  if (el) el.classList.add('gone');
+  command({ del: what }).then(() => { toast(LOCAL ? 'انحذفت' : 'انرسل الحذف للبوكس'); }).catch(e => { if (el) el.classList.remove('gone'); toast('ما انحذفت: ' + e.message, true); });
+}
+
+function renderLib(L) {
+  lib = L;
+  const box = $('lib');
+  const total = L.lib.reduce((a, t) => a + t.size, 0);
+  $('libInfo').textContent = L.lib.length ? `${mb(total)} · فاضي ${mb(L.free)}` : '';
+  box.innerHTML = L.lib.length ? '' : '<div class="msg">ما فيه شي على البوكس.</div>';
+  for (const t of L.lib) {
+    const watched = t.eps.filter(e => e.w);
+    const el = document.createElement('div');
+    el.className = 'series' + (openSeries.has(t.dir) ? ' open' : '');
+    el.innerHTML = `<div class="head"><div><div class="title"></div><div class="meta"></div></div><div class="chev">‹</div></div><div class="body"><div class="bulk"></div><div class="eps"></div></div>`;
+    el.querySelector('.title').textContent = t.name;
+    el.querySelector('.meta').textContent = `${count(t.eps.length)} · ${mb(t.size)}` + (watched.length ? ` · شاهدت ${watched.length}` : '');
+    el.querySelector('.head').onclick = () => {
+      el.classList.toggle('open');
+      el.classList.contains('open') ? openSeries.add(t.dir) : openSeries.delete(t.dir);
+      localStorage.setItem('animeOpen', JSON.stringify([...openSeries]));
+    };
+    const bulk = el.querySelector('.bulk');
+    if (watched.length && watched.length < t.eps.length) {
+      const b = document.createElement('button'); b.className = 'del';
+      b.textContent = `احذف اللي شاهدته (${watched.length} · ${mb(watched.reduce((a, e) => a + e.b, 0))})`;
+      b.onclick = () => del({ files: watched.map(e => e.f) }, `${count(watched.length)} شاهدتها من ${t.name}`, null);
+      bulk.appendChild(b);
+    }
+    const all = document.createElement('button'); all.className = 'del';
+    all.textContent = `احذف ${t.name} كامل (${mb(t.size)})`;
+    all.onclick = () => del({ dir: t.dir }, `«${t.name}» كامل (${count(t.eps.length)})`, el);
+    bulk.appendChild(all);
+    const eps = el.querySelector('.eps');
+    for (const e of t.eps) {
+      const r = document.createElement('div'); r.className = 'ep';
+      r.innerHTML = `<div><span class="n"></span> <span class="w"></span><div class="sz"></div></div>`;
+      r.querySelector('.n').textContent = epName(e);
+      r.querySelector('.w').textContent = e.w ? '✓ شاهدتها' : '';
+      r.querySelector('.sz').textContent = mb(e.b);
+      const b = document.createElement('button'); b.className = 'del'; b.textContent = 'احذف';
+      b.onclick = () => del({ files: [e.f] }, `${t.name} · ${epName(e)}`, r);
+      r.appendChild(b); eps.appendChild(r);
+    }
+    box.appendChild(el);
+  }
+}
+function loadLib() {
+  if (LOCAL) return api('/lib').then(renderLib).catch(() => {});
+  command({ lib: 1 }).catch(() => {});
+}
+$('libRefresh').onclick = () => { $('lib').innerHTML = '<div class="msg">يجيب قائمة الملفات من البوكس…</div>'; loadLib(); };
+
 let timer, last = null, sentAt = 0, pingedAt = 0, autoPings = 0;
 function ago(ms) { const m = Math.round(ms / 60000); return m < 1 ? 'الحين' : m < 60 ? `قبل ${m} دقيقة` : `قبل ${Math.round(m / 60)} ساعة`; }
 
@@ -226,7 +307,7 @@ function ping(manual) {
   if (!manual && autoPings >= 4) { $('status').textContent += ' اسحب للتحديث أو افتح الصفحة من جديد.'; return; }
   autoPings = manual ? 0 : autoPings + 1;
   pingedAt = Date.now();
-  command({ ping: 1 }).catch(() => {});
+  command(manual ? { ping: 1, lib: 1 } : { ping: 1 }).catch(() => {});
   setTimeout(showStatus, 16000);
 }
 
@@ -236,7 +317,13 @@ function startRemote() {
   $('free').textContent = '';
   const es = new EventSource(NTFY + '-s/sse?since=12h');
   es.onmessage = (e) => {
-    let st; try { st = JSON.parse(JSON.parse(e.data).message); } catch (x) { return; }
+    let o, st; try { o = JSON.parse(e.data); st = JSON.parse(o.message); } catch (x) { return; }
+    if (st.libAt) {
+      if (st.libAt <= libAt || !o.attachment) return;
+      libAt = st.libAt;
+      fetch(o.attachment.url).then(r => r.ok ? r.json() : null).then(L => { if (L && L.ts >= (lib ? lib.ts : 0)) renderLib(L); }).catch(() => {});
+      return;
+    }
     if (!st.ts || (last && st.ts < last.ts)) return;
     last = st; render(st); showStatus();
   };
@@ -259,7 +346,7 @@ async function poll() {
   timer = setTimeout(poll, document.hidden ? 8000 : 2000);
 }
 if (!KEY) { $('status').textContent = ''; $('nokey').hidden = false; }
-else if (LOCAL) poll();
+else if (LOCAL) { poll(); loadLib(); setInterval(() => { if (!document.hidden) loadLib(); }, 20000); }
 else startRemote();
 document.addEventListener('visibilitychange', () => { if (!document.hidden && KEY) { if (LOCAL) poll(); else ping(true); } });
 </script>
