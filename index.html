@@ -68,11 +68,59 @@
   .toast { position:fixed; inset-inline:18px; bottom:max(18px, env(safe-area-inset-bottom)); background:var(--ok); color:#0b1a0e; padding:14px 16px;
            border-radius:14px; font-weight:700; transform:translateY(150%); transition:transform .3s; }
   .toast.show { transform:none; } .toast.bad { background:var(--bad); color:#1a0806; }
+  /* وقت المشاهدة */
+  .uhead { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .uhead .name { font-size:18px; }
+  #uState { color:var(--muted); font-size:14px; }
+  #uState.locked { color:var(--bad); } #uState.open { color:var(--ok); }
+  #uLeft { font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; direction:ltr; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chips button, .ubtns button { background:var(--field); color:var(--text); border:0; border-radius:11px; padding:10px 14px; font:inherit; font-weight:700; font-size:15px; }
+  .chips button:active, .ubtns button:active { background:var(--accent); color:#1a0810; }
+  .ubtns { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+  .ubtns .lock { background:#ff7a6b26; color:var(--bad); }
+  .ubtns .open { background:#7ccf8a22; color:var(--ok); }
+  .ureq { background:#ff7a9c1f; border:1px solid #ff7a9c55; border-radius:14px; padding:12px; margin-top:14px; }
+  .ureq .chips { margin-top:10px; }
+  .ureq .no { background:#ff7a6b26; color:var(--bad); }
+  .inline { display:grid; grid-template-columns:1fr auto; gap:8px; }
+  .inline button { border:0; border-radius:12px; padding:0 18px; background:var(--accent); color:#1a0810; font:inherit; font-weight:800; }
+  .switch { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:12px; }
+  .switch input { width:auto; transform:scale(1.4); accent-color:var(--accent); }
+  .busy { opacity:.55; pointer-events:none; }
 </style>
 </head>
 <body>
 <header><div class="logo">ア</div><div><h1>انمي</h1></div></header>
 <p class="sub" id="status">أتصل بالتلفزيون…</p>
+
+<div class="card" id="usageCard" hidden>
+  <div class="uhead"><div><div class="name">وقت المشاهدة</div><div id="uState">…</div></div><div id="uLeft"></div></div>
+  <div class="ureq" id="uReq" hidden>
+    <div id="uReqText"></div>
+    <div class="chips" id="uReqBtns"></div>
+  </div>
+  <div id="uLogin" hidden>
+    <label for="uPin">الرقم السري للتحكم</label>
+    <form class="inline" id="uLoginForm"><input id="uPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••"><button>دخول</button></form>
+  </div>
+  <div id="uCtl" hidden>
+    <div class="ubtns"><button class="lock" data-u="lock">اقفل الحين</button><button class="open" data-u="free">افتح بدون حد</button></div>
+    <label>افتح لمدة</label>
+    <div class="chips" id="uTimer"></div>
+    <div id="uExtendBox"><label>زد على الوقت الباقي</label><div class="chips" id="uExtend"></div></div>
+    <details id="uMore">
+      <summary>إعدادات وقت المشاهدة</summary>
+      <label class="switch">يقدرون يطلبون وقت زيادة من التلفزيون <input type="checkbox" id="uAllow"></label>
+      <label for="uNewPin">غيّر الرقم السري (٤ أرقام)</label>
+      <form class="inline" id="uPinForm"><input id="uNewPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"><button>غيّر</button></form>
+      <label>تنبيه بطلبات التمديد على جوالك</label>
+      <p class="hint" style="margin-top:0">نزّل تطبيق <a href="https://apps.apple.com/app/ntfy/id1625396347" style="color:var(--accent)">ntfy</a> (مجاني)، واضغط + واكتب هالاسم بالضبط. يوصلك تنبيه فيه زر «وافق» على طول.</p>
+      <div class="inline"><input id="uTopic" class="ltr" readonly><button type="button" id="uCopy">انسخ</button></div>
+      <p class="hint"><button type="button" id="uLogout" style="background:none;border:0;color:var(--muted);font:inherit;padding:0;text-decoration:underline">اطلع (انسَ الرقم السري من هالجوال)</button></p>
+    </details>
+  </div>
+</div>
 
 <div id="app" hidden>
   <div class="card">
@@ -139,6 +187,7 @@ function command(msg) {
     if (msg.add) return api('/add', { method: 'POST', body: JSON.stringify(msg.add) });
     if (msg.job) return api(`/job?id=${msg.job.id}&do=${msg.job.do}`, { method: 'POST' });
     if (msg.clear) return api('/clear', { method: 'POST' });
+    if (msg.usage) return api('/usage', { method: 'POST', body: JSON.stringify(msg.usage) });
     if (msg.del) return api('/del', { method: 'POST', body: JSON.stringify(msg.del) }).then(r => { loadLib(); return r; });
     return Promise.resolve({});
   }
@@ -192,6 +241,7 @@ $('go').onclick = async () => {
 
 const STATE = { queued: 'بالدور', paused: 'موقّف', failed: 'ما تحمّلت', done: 'تحمّلت' };
 function render(s) {
+  if (s.usage) renderUsage(s.usage);
   $('free').textContent = 'فاضي ' + mb(s.free);
   $('known').innerHTML = s.series.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
   const jobs = s.jobs.slice().sort((a, b) => (a.status === 'done') - (b.status === 'done') || a.added - b.added);
@@ -287,6 +337,72 @@ function loadLib() {
   command({ lib: 1 }).catch(() => {});
 }
 $('libRefresh').onclick = () => { $('lib').innerHTML = '<div class="msg">يجيب قائمة الملفات من البوكس…</div>'; loadLib(); };
+
+// ---------- وقت المشاهدة ----------
+// كل أمر فيه الرقم السري (ينحفظ في هالجوال بس). من برا: البوكس يرد بـ ack في حالته.
+let U = null, uPin = localStorage.getItem('animePin'), uWait = null;
+const uMin = (m) => m === 60 ? 'ساعة' : m === 120 ? 'ساعتين' : m % 60 === 0 ? `${m / 60} ساعات` : m > 60 ? `${Math.floor(m / 60)} س و${m % 60} د` : `${m} د`;
+const uClock = (ms) => { const t = Math.ceil(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), x = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+function uFill(id, mins, fn) { const box = $(id); box.innerHTML = ''; for (const m of mins) { const b = document.createElement('button'); b.textContent = fn(m); b.onclick = () => usage(id === 'uTimer' ? { do: 'timer', min: m } : { do: 'extend', min: m }); box.appendChild(b); } }
+uFill('uTimer', [15, 20, 30, 45, 60, 90, 120], uMin);
+uFill('uExtend', [5, 10, 15, 30, 60], m => '+' + uMin(m));
+document.querySelectorAll('[data-u]').forEach(b => b.onclick = () => usage({ do: b.dataset.u }));
+$('uTopic').value = 'anime-' + KEY + '-req';
+$('uCopy').onclick = () => { navigator.clipboard.writeText($('uTopic').value).then(() => toast('انسخ الاسم')).catch(() => { $('uTopic').select(); }); };
+$('uLogout').onclick = () => { localStorage.removeItem('animePin'); uPin = null; uShow(); };
+$('uAllow').onchange = (e) => usage({ do: 'allowReq', on: e.target.checked });
+$('uLoginForm').onsubmit = (e) => { e.preventDefault(); const p = $('uPin').value.trim(); if (!/^\d{4}$/.test(p)) return toast('الرقم ٤ أرقام', true); uPin = p; usage({ do: 'check' }, true); };
+$('uPinForm').onsubmit = (e) => { e.preventDefault(); const p = $('uNewPin').value.trim(); if (!/^\d{4}$/.test(p)) return toast('الرقم ٤ أرقام', true); usage({ do: 'setPin', newPin: p }).then(ok => { if (ok) { uPin = p; localStorage.setItem('animePin', p); $('uNewPin').value = ''; } }); };
+
+function uShow() { $('uLogin').hidden = !!uPin && localStorage.getItem('animePin') === uPin; $('uCtl').hidden = !$('uLogin').hidden; }
+function uResult(ok, err, login) {
+  $('usageCard').classList.remove('busy');
+  if (ok) { if (login) { localStorage.setItem('animePin', uPin); $('uPin').value = ''; toast('تم الدخول'); } else toast('تم'); uShow(); return true; }
+  if (err === 'pin') { localStorage.removeItem('animePin'); uPin = null; uShow(); toast('الرقم السري غلط', true); }
+  else toast(err || 'ما تم', true);
+  return false;
+}
+function usage(o, login) {
+  if (!uPin && !o.rid) { uShow(); return Promise.resolve(false); }
+  const cid = Math.random().toString(36).slice(2, 10);
+  const msg = { ...o, pin: uPin || undefined, cid };
+  $('usageCard').classList.add('busy');
+  if (LOCAL) return api('/usage', { method: 'POST', body: JSON.stringify(msg) }).then(r => { if (r.usage) renderUsage(r.usage); return uResult(r.ok, r.error, login); })
+    .catch(e => uResult(false, e.message));
+  return new Promise(res => {
+    uWait = { cid, login, res, t: setTimeout(() => { uWait = null; $('usageCard').classList.remove('busy'); toast('انرسل، والبوكس ما رد للحين. ينفّذه أول ما يتصل.', true); res(false); }, 25000) };
+    sentAt = Date.now();
+    command({ usage: msg, ping: 1 }).catch(e => { clearTimeout(uWait.t); uWait = null; res(uResult(false, e.message)); });
+  });
+}
+function renderUsage(u) {
+  U = u; U.got = Date.now();
+  $('usageCard').hidden = false;
+  if (uWait && u.ack && u.ack.cid === uWait.cid) { const w = uWait; uWait = null; clearTimeout(w.t); w.res(uResult(u.ack.ok, u.ack.error, w.login)); }
+  $('uAllow').checked = !!u.allowReq;
+  const r = u.req;
+  $('uReq').hidden = !r;
+  if (r) {
+    $('uReqText').textContent = `يطلبون ${uMin(r.min)} زيادة (${ago(Date.now() - r.at)})`;
+    const box = $('uReqBtns'); box.innerHTML = '';
+    const opts = [...new Set([r.min, 15, 30])].sort((a, b) => a - b);
+    for (const m of opts) { const b = document.createElement('button'); b.textContent = 'وافق ' + uMin(m); b.onclick = () => usage({ do: 'approve', min: m }); box.appendChild(b); }
+    const n = document.createElement('button'); n.className = 'no'; n.textContent = 'ارفض'; n.onclick = () => usage({ do: 'deny' }); box.appendChild(n);
+  }
+  uShow(); uTick();
+}
+function uTick() {
+  if (!U) return;
+  const left = U.until - Date.now();
+  let st, cls, big = '';
+  if (U.mode === 'free') { st = 'مفتوح بدون حد'; cls = 'open'; }
+  else if (U.mode === 'locked') { st = 'مقفل'; cls = 'locked'; big = '🔒'; }
+  else if (left <= 0) { st = 'خلص الوقت · مقفل'; cls = 'locked'; big = '0:00'; }
+  else { st = 'مفتوح · المؤقت شغّال'; cls = 'open'; big = uClock(left); }
+  $('uState').textContent = st; $('uState').className = cls; $('uLeft').textContent = big;
+  $('uExtendBox').hidden = !(U.mode === 'timer' && left > 0);
+}
+setInterval(uTick, 1000);
 
 let timer, last = null, sentAt = 0, pingedAt = 0, autoPings = 0;
 function ago(ms) { const m = Math.round(ms / 60000); return m < 1 ? 'الحين' : m < 60 ? `قبل ${m} دقيقة` : `قبل ${Math.round(m / 60)} ساعة`; }
