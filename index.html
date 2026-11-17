@@ -155,20 +155,26 @@
       </div>
       <details id="importFacts" hidden><summary>تفاصيل العمل</summary><dl id="importFields" class="import-facts"></dl></details>
       <div class="import-detail" id="importSeasonBox">
-        <label for="importSeason">الموسم</label>
+        <label for="importSeason" id="importSeasonLabel">اختر الموسم</label>
         <select id="importSeason"></select>
       </div>
       <div class="import-detail" id="episodePicker">
         <label for="importChoice" id="episodePrompt">كم حلقة تبغى تحمّل؟</label>
         <select id="importChoice">
-          <option value="">اختر الحلقات</option>
-          <option value="first">أول عدد من الحلقات</option>
-          <option value="numbers">أرقام الحلقات أو نطاق</option>
-          <option value="all">كل الحلقات</option>
+          <option value="">اختر طريقة التحديد</option>
+          <option value="single">حلقة واحدة</option>
+          <option value="range">من حلقة إلى حلقة</option>
+          <option value="all">جميع الحلقات</option>
         </select>
-        <div id="episodeInput" hidden>
-          <label for="episodeSelection" id="episodeLabel"></label>
-          <input id="episodeSelection" autocomplete="off">
+        <div id="episodeSingleBox" hidden>
+          <label for="episodeSingle">رقم الحلقة</label>
+          <select id="episodeSingle"></select>
+        </div>
+        <div id="episodeRangeBox" hidden>
+          <div class="two">
+            <div><label for="episodeFrom">من حلقة</label><select id="episodeFrom"></select></div>
+            <div><label for="episodeTo">إلى حلقة</label><select id="episodeTo"></select></div>
+          </div>
         </div>
       </div>
       <p class="hint" id="selectionSummary" aria-live="polite"></p>
@@ -335,48 +341,38 @@ async function receiveImportReply(message, attachment) {
   } catch { pending.reject(Error('تعذّر استلام تفاصيل العمل. جرّب مرة ثانية.')); }
 }
 
-function pickEpisodes(available, choice, value) {
-  if (choice === 'all') return available;
-  const input = value.trim().replace(/[٠-٩۰-۹]/g, digit => String(digit.charCodeAt(0) % 16));
-  if (!input) return [];
-  if (choice === 'first') {
-    const count = Number(input);
-    return /^\d+$/.test(input) && count > 0 && count <= available.length ? available.slice(0, count) : [];
-  }
-  if (choice !== 'numbers') return [];
-  const offered = new Set(available), wanted = new Set();
-  for (const part of input.replace(/\s*(?:إلى|الى|[-–—])\s*/g, '-').replace(/\s+و\s*/g, ',').split(/[\s,،]+/)) {
-    const m = part.match(/^(\d+)(?:-(\d+))?$/);
-    if (!m) return [];
-    const from = Number(m[1]), to = Number(m[2] || m[1]);
-    if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from || to - from >= offered.size) return [];
-    for (let number = from; number <= to; number++) {
-      if (!offered.has(number)) return [];
-      wanted.add(number);
-    }
-  }
-  return available.filter(number => wanted.has(number));
-}
-
 function selectedImportEpisodes() {
   if (!importDetails) return [];
   const available = importDetails.episodes.map(ep => ep.number);
-  if (available.length === 1) return available;
-  return pickEpisodes(available, $('importChoice').value, $('episodeSelection').value);
+  const choice = $('importChoice').value;
+  if (importDetails.movie || choice === 'all') return available;
+  if (choice === 'single') return available.filter(number => String(number) === $('episodeSingle').value);
+  if (choice !== 'range' || !$('episodeFrom').value || !$('episodeTo').value) return [];
+  const from = Number($('episodeFrom').value), to = Number($('episodeTo').value);
+  return available.filter(number => number >= from && number <= to);
+}
+
+function episodeOptions(field, episodes) {
+  const previous = field.value;
+  field.replaceChildren(new Option('اختر الحلقة', ''), ...episodes.map(ep => new Option(`الحلقة ${ar(ep.number)}`, ep.number)));
+  if (episodes.some(ep => String(ep.number) === previous)) field.value = previous;
+}
+
+function setRangeEnd() {
+  const from = $('episodeFrom').value;
+  episodeOptions($('episodeTo'), from && importDetails ? importDetails.episodes.filter(ep => ep.number >= Number(from)) : []);
 }
 
 function showImportSelection() {
   const choice = $('importChoice').value;
-  const first = choice === 'first';
-  const field = $('episodeSelection');
-  $('episodeInput').hidden = !(first || choice === 'numbers');
-  $('episodeLabel').textContent = first ? 'عدد الحلقات من البداية' : 'أرقام الحلقات';
-  field.placeholder = first ? 'مثال ٣' : 'مثال ٢ و٤ و٧ أو ٣ إلى ٦';
-  field.inputMode = first ? 'numeric' : 'text';
+  $('episodeSingleBox').hidden = choice !== 'single';
+  $('episodeRangeBox').hidden = choice !== 'range';
+  $('episodeTo').disabled = !$('episodeFrom').value;
   const episodes = selectedImportEpisodes();
   $('downloadImport').disabled = importBusy || !episodes.length;
-  $('selectionSummary').textContent = episodes.length ? `المحدد ${episodes.map(ar).join('، ')}` :
-    field.value.trim() && !$('episodeInput').hidden ? 'تأكد أن الأرقام والنطاق ضمن الحلقات المتاحة.' : '';
+  $('selectionSummary').textContent = !episodes.length || importDetails.movie ? '' :
+    episodes.length === 1 ? `المحدد الحلقة ${ar(episodes[0])}` :
+      `${choice === 'all' ? 'جميع الحلقات' : `من الحلقة ${ar(episodes[0])} إلى ${ar(episodes[episodes.length - 1])}`} · ${ar(episodes.length)} حلقة`;
 }
 
 function showImport(details) {
@@ -401,10 +397,16 @@ function showImport(details) {
     `الموسم ${ar(season.number)}${season.count ? ` · ${ar(season.count)} حلقة` : ''}`, season.id)));
   $('importSeason').value = details.season;
   $('importSeasonBox').hidden = details.movie || !details.seasons.length;
-  $('episodePicker').hidden = details.movie || details.episodes.length === 1;
+  $('importSeasonLabel').textContent = `اختر الموسم · المواسم المتاحة ${ar(details.seasons.length)}`;
+  $('episodePicker').hidden = details.movie;
   $('episodePrompt').textContent = `عدد الحلقات المتاحة ${ar(details.episodes.length)} · كم حلقة تبغى تحمّل؟`;
-  $('importChoice').value = details.suggestedEpisode != null ? 'numbers' : '';
-  $('episodeSelection').value = details.suggestedEpisode != null ? ar(details.suggestedEpisode) : '';
+  const episode = details.suggestedEpisode ?? (details.episodes.length === 1 ? details.episodes[0].number : null);
+  $('importChoice').value = episode == null ? '' : 'single';
+  $('episodeFrom').value = '';
+  episodeOptions($('episodeSingle'), details.episodes);
+  $('episodeSingle').value = episode == null ? '' : String(episode);
+  episodeOptions($('episodeFrom'), details.episodes);
+  setRangeEnd();
   $('importResult').hidden = false;
   showImportSelection();
 }
@@ -417,21 +419,37 @@ async function inspectTitle(value, season = '') {
     return;
   }
   if (!season) $('titleUrl').value = url;
+  const previous = season ? importDetails : null;
   importBusy = true;
-  importDetails = null;
-  $('importResult').hidden = true;
+  if (!previous) {
+    importDetails = null;
+    $('importResult').hidden = true;
+  }
   $('inspectTitle').disabled = true;
   $('titleUrl').disabled = true;
-  importMessage('أقرأ تفاصيل الرابط…');
+  $('importSeason').disabled = true;
+  $('importChoice').disabled = true;
+  $('downloadImport').disabled = true;
+  importMessage(previous ? '' : 'أقرأ تفاصيل الرابط…');
+  if (previous) $('selectionSummary').textContent = 'أقرأ حلقات الموسم…';
+  let seasonError = '';
   try {
     showImport(await importRequest('preview', {url, season}));
     importMessage('');
-  } catch (error) { importMessage(error.message, true); }
+  } catch (error) {
+    if (previous) {
+      $('importSeason').value = previous.season;
+      seasonError = error.message;
+    } else importMessage(error.message, true);
+  }
   finally {
     importBusy = false;
     $('inspectTitle').disabled = false;
     $('titleUrl').disabled = false;
+    $('importSeason').disabled = false;
+    $('importChoice').disabled = false;
     showImportSelection();
+    if (seasonError) $('selectionSummary').textContent = seasonError;
   }
 }
 
@@ -448,8 +466,10 @@ $('titleUrl').onpaste = event => {
   }
 };
 $('importSeason').onchange = () => { if (importDetails) inspectTitle(importDetails.url, $('importSeason').value); };
-$('importChoice').onchange = () => { $('episodeSelection').value = ''; showImportSelection(); };
-$('episodeSelection').oninput = showImportSelection;
+$('importChoice').onchange = showImportSelection;
+$('episodeSingle').onchange = showImportSelection;
+$('episodeFrom').onchange = () => { setRangeEnd(); showImportSelection(); };
+$('episodeTo').onchange = showImportSelection;
 $('downloadImport').onclick = async () => {
   const episodes = selectedImportEpisodes();
   if (!episodes.length || importBusy) return;
