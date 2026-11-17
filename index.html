@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="انمي">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>انمي · أضف حلقات</title>
+<style>
+  :root { --bg:#0a0a0c; --card:#17171b; --field:#222228; --text:#f4ead9; --muted:#a9a196; --accent:#ff7a9c; --ok:#7ccf8a; --bad:#ff7a6b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:radial-gradient(120% 60% at 80% 0%, #2a0c1a 0%, var(--bg) 60%); color:var(--text);
+         font:17px/1.5 -apple-system, "SF Arabic", "Geeza Pro", system-ui, sans-serif; min-height:100vh;
+         padding:max(24px, env(safe-area-inset-top)) 18px 48px; }
+  header { display:flex; align-items:center; gap:12px; }
+  .logo { width:44px; height:44px; border-radius:14px; background:linear-gradient(145deg,#ffa3bb,#e0487a); display:grid; place-items:center;
+          box-shadow:0 8px 24px #e0487a55; font-weight:900; color:#1a0810; font-size:22px; }
+  h1 { font-size:26px; margin:0; font-weight:800; }
+  .sub { color:var(--muted); margin:2px 0 20px; font-size:15px; }
+  .card { background:var(--card); border-radius:18px; padding:16px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:var(--muted); margin:12px 2px 6px; }
+  label:first-child { margin-top:0; }
+  input, textarea { width:100%; background:var(--field); color:var(--text); border:1px solid #ffffff14; border-radius:12px;
+                    padding:12px 14px; font:inherit; outline:none; }
+  input:focus, textarea:focus { border-color:var(--accent); }
+  textarea { min-height:140px; direction:ltr; text-align:left; font-size:14px; line-height:1.6; }
+  .ltr { direction:ltr; text-align:left; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .tabs { display:flex; background:var(--field); border-radius:12px; padding:4px; gap:4px; margin:14px 0 4px; }
+  .tabs button { flex:1; border:0; background:none; color:var(--muted); font:inherit; font-weight:700; padding:9px; border-radius:9px; }
+  .tabs button.on { background:var(--accent); color:#1a0810; }
+  .hint { color:var(--muted); font-size:13px; margin:8px 2px 0; }
+  .go { width:100%; padding:18px; border-radius:16px; border:0; background:var(--accent); color:#1a0810; font:inherit; font-weight:800; font-size:19px; margin-top:16px; }
+  .go:disabled { opacity:.5; }
+  .preview { font-size:13px; color:var(--muted); margin-top:10px; direction:ltr; text-align:left; max-height:110px; overflow:auto; white-space:pre; }
+  details summary { color:var(--muted); font-size:14px; margin-top:14px; }
+  h2 { font-size:18px; margin:26px 2px 10px; display:flex; justify-content:space-between; align-items:baseline; }
+  h2 small { font-size:13px; color:var(--muted); font-weight:500; }
+  h2 button { background:none; border:0; color:var(--accent); font:inherit; font-size:14px; }
+  .job { background:var(--card); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+  .row { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+  .name { font-weight:700; }
+  .state { color:var(--muted); font-size:13px; }
+  .bar { height:5px; background:#ffffff1c; border-radius:3px; margin-top:8px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--accent); transition:width .5s; }
+  .done .state { color:var(--ok); } .done .bar i { background:var(--ok); }
+  .failed .state { color:var(--bad); }
+  .acts button { background:#ffffff14; color:var(--text); border:0; border-radius:9px; padding:6px 10px; font:inherit; font-size:13px; margin-inline-start:6px; }
+  .msg { background:var(--card); border-radius:16px; padding:18px; color:var(--muted); }
+  .toast { position:fixed; inset-inline:18px; bottom:max(18px, env(safe-area-inset-bottom)); background:var(--ok); color:#0b1a0e; padding:14px 16px;
+           border-radius:14px; font-weight:700; transform:translateY(150%); transition:transform .3s; }
+  .toast.show { transform:none; } .toast.bad { background:var(--bad); color:#1a0806; }
+</style>
+</head>
+<body>
+<header><div class="logo">ア</div><div><h1>انمي</h1></div></header>
+<p class="sub" id="status">أتصل بالتلفزيون…</p>
+
+<div id="app" hidden>
+  <div class="card">
+    <label for="series">اسم الأنمي</label>
+    <input id="series" list="known" placeholder="مثلاً: One Piece" autocomplete="off">
+    <datalist id="known"></datalist>
+    <div class="two">
+      <div><label for="season">الموسم</label><input id="season" type="number" inputmode="numeric" min="1" value="1"></div>
+      <div id="startBox"><label for="start">رقم أول حلقة</label><input id="start" type="number" inputmode="numeric" min="0" value="1"></div>
+    </div>
+
+    <div class="tabs"><button id="tList" class="on">روابط</button><button id="tPattern">نمط برقم الحلقة</button></div>
+
+    <div id="listMode">
+      <label for="links">الروابط، كل رابط في سطر بترتيب الحلقات</label>
+      <textarea id="links" placeholder="https://…/ep01.mp4&#10;https://…/ep02.mp4"></textarea>
+      <p class="hint">أول رابط ياخذ «رقم أول حلقة» واللي بعده يزيد واحد. روابط ملفات مباشرة (mp4 / mkv) أو قوائم m3u8.</p>
+    </div>
+    <div id="patternMode" hidden>
+      <label for="pattern">الرابط، وحط {n} مكان رقم الحلقة</label>
+      <input id="pattern" class="ltr" placeholder="https://…/episode-{nn}.mp4">
+      <div class="two">
+        <div><label for="from">من حلقة</label><input id="from" type="number" inputmode="numeric" min="0" value="1"></div>
+        <div><label for="to">إلى حلقة</label><input id="to" type="number" inputmode="numeric" min="0" value="5"></div>
+      </div>
+      <p class="hint">{n} = 1، 2، 3 · {nn} = 01، 02 · {nnn} = 001، 002</p>
+    </div>
+
+    <details><summary>متقدم</summary>
+      <label for="referer">Referer (لو الخادم يطلبه)</label>
+      <input id="referer" class="ltr" placeholder="https://…">
+    </details>
+
+    <div class="preview" id="preview"></div>
+    <button class="go" id="go" disabled>حمّل على التلفزيون</button>
+  </div>
+
+  <h2>التحميلات <span><small id="free"></small> <button id="clear" hidden>امسح الخالصة</button></span></h2>
+  <div id="jobs"></div>
+</div>
+<div id="nokey" class="msg" hidden>صوّر الباركود اللي في التلفزيون: انمي ← «أضف من الجوال». بعدها الصفحة تشتغل من أي مكان.</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// وضعين: محلي (الصفحة من البوكس نفسه على 8766) أو من أي مكان (الصفحة على GitHub والأوامر عبر ntfy.sh)
+const LOCAL = location.port === '8766';
+const q = new URLSearchParams(location.search);
+const hashKey = (location.hash.match(/^#([a-f0-9]{16,})$/) || [])[1];
+if (q.get('k') || hashKey) localStorage.setItem('animeKey', q.get('k') || hashKey);
+const KEY = localStorage.getItem('animeKey');
+if (LOCAL && q.get('k')) history.replaceState(null, '', '/');
+// نخلي المفتاح في الرابط عشان «إضافة إلى الشاشة الرئيسية» تحفظه
+if (!LOCAL && KEY && location.hash !== '#' + KEY) history.replaceState(null, '', location.pathname + '#' + KEY);
+const NTFY = 'https://ntfy.sh/anime-' + KEY;
+const $ = (id) => document.getElementById(id);
+const api = (path, opts = {}) => fetch(path, { ...opts, headers: { 'X-Key': KEY || '', 'Content-Type': 'application/json' } })
+  .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.status); return j; });
+// أمر للبوكس: محلياً بطلب مباشر، ومن برا برسالة ntfy (لو البوكس طافي ينفّذها أول ما يشتغل، خلال ١٢ ساعة)
+function command(msg) {
+  if (LOCAL) {
+    if (msg.add) return api('/add', { method: 'POST', body: JSON.stringify(msg.add) });
+    if (msg.job) return api(`/job?id=${msg.job.id}&do=${msg.job.do}`, { method: 'POST' });
+    if (msg.clear) return api('/clear', { method: 'POST' });
+    return Promise.resolve({});
+  }
+  return fetch(NTFY, { method: 'POST', body: JSON.stringify(msg) }).then(r => { if (!r.ok) throw new Error('ntfy ' + r.status); return {}; });
+}
+let mode = 'list';
+
+function toast(t, bad) { const e = $('toast'); e.textContent = t; e.className = 'toast show' + (bad ? ' bad' : ''); clearTimeout(e._t); e._t = setTimeout(() => e.className = 'toast', 3500); }
+const mb = (b) => b >= 1073741824 ? (b / 1073741824).toFixed(2) + ' جيجا' : (b / 1048576).toFixed(0) + ' ميجا';
+
+function items() {
+  if (mode === 'list') {
+    const start = parseInt($('start').value || '1', 10);
+    return $('links').value.split(/\s+/).map(s => s.trim()).filter(s => /^https?:\/\//i.test(s)).map((url, i) => ({ episode: start + i, url }));
+  }
+  const p = $('pattern').value.trim(), a = parseInt($('from').value, 10), b = parseInt($('to').value, 10);
+  if (!/^https?:\/\//i.test(p) || !/\{n+\}/.test(p) || isNaN(a) || isNaN(b) || b < a || b - a > 500) return [];
+  const out = [];
+  for (let n = a; n <= b; n++) out.push({ episode: n, url: p.replace(/\{(n+)\}/g, (_, z) => String(n).padStart(z.length, '0')) });
+  return out;
+}
+
+function refreshPreview() {
+  const it = items(), s = $('series').value.trim();
+  $('go').disabled = !s || !it.length;
+  $('go').textContent = it.length ? `حمّل ${it.length === 1 ? 'الحلقة ' + it[0].episode : (it.length === 2 ? 'حلقتين' : it.length + (it.length <= 10 ? ' حلقات' : ' حلقة')) + ' (' + it[0].episode + '–' + it[it.length - 1].episode + ')'} على التلفزيون` : 'حمّل على التلفزيون';
+  $('preview').textContent = it.slice(0, 4).map(x => `E${x.episode}  ${x.url}`).join('\n') + (it.length > 4 ? `\n… +${it.length - 4}` : '');
+}
+
+function setMode(m) {
+  mode = m;
+  $('tList').classList.toggle('on', m === 'list'); $('tPattern').classList.toggle('on', m === 'pattern');
+  $('listMode').hidden = m !== 'list'; $('patternMode').hidden = m !== 'pattern'; $('startBox').style.visibility = m === 'list' ? '' : 'hidden';
+  refreshPreview();
+}
+$('tList').onclick = () => setMode('list');
+$('tPattern').onclick = () => setMode('pattern');
+['series', 'season', 'start', 'links', 'pattern', 'from', 'to'].forEach(id => $(id).addEventListener('input', refreshPreview));
+
+$('go').onclick = async () => {
+  $('go').disabled = true;
+  try {
+    const n = items().length;
+    await command({ add: { series: $('series').value.trim(), season: parseInt($('season').value || '1', 10), items: items(), referer: $('referer').value.trim() } });
+    const what = n === 1 ? 'الحلقة' : n === 2 ? 'حلقتين' : `${n} ${n <= 10 ? 'حلقات' : 'حلقة'}`;
+    toast(LOCAL ? `انضافت ${what} للتحميل` : `انرسلت ${what} للبوكس`);
+    if (!LOCAL) { sentAt = Date.now(); showStatus(); }
+    $('links').value = ''; refreshPreview(); poll();
+  } catch (e) { toast('ما انضافت: ' + e.message, true); $('go').disabled = false; }
+};
+
+const STATE = { queued: 'بالدور', paused: 'موقّف', failed: 'ما تحمّلت', done: 'تحمّلت' };
+function render(s) {
+  $('free').textContent = 'فاضي ' + mb(s.free);
+  $('known').innerHTML = s.series.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
+  const jobs = s.jobs.slice().sort((a, b) => (a.status === 'done') - (b.status === 'done') || a.added - b.added);
+  $('clear').hidden = !jobs.some(j => j.status === 'done');
+  $('jobs').innerHTML = jobs.length ? '' : '<div class="msg">ما فيه تحميلات.</div>';
+  for (const j of jobs) {
+    const pct = j.total > 0 ? Math.floor(j.done * 100 / j.total) : 0;
+    let st = STATE[j.status] || '';
+    if (j.status === 'downloading') st = (j.total > 0 ? pct + '٪ · ' + mb(j.done) + ' من ' + mb(j.total) : mb(j.done)) + (j.speed > 0 ? ' · ' + mb(j.speed) + '/ث' : '') + (j.error ? ' · ' + j.error : '');
+    if (j.status === 'failed') st += ': ' + (j.error || '');
+    if (j.status === 'done') st += ' · ' + mb(j.total);
+    const acts = [];
+    if (j.status === 'downloading' || j.status === 'queued') acts.push(['pause', 'وقّف']);
+    if (j.status === 'paused') acts.push(['resume', 'كمّل']);
+    if (j.status === 'failed') acts.push(['retry', 'جرّب ثاني']);
+    acts.push(['remove', j.status === 'done' ? 'شيل' : 'ألغِ']);
+    const el = document.createElement('div');
+    el.className = 'job ' + j.status;
+    el.innerHTML = `<div class="row"><div><div class="name"></div><div class="state"></div></div><div class="acts"></div></div>` +
+      (j.status === 'downloading' || (j.status === 'paused' && j.total > 0) ? `<div class="bar"><i style="width:${pct}%"></i></div>` : '');
+    el.querySelector('.name').textContent = `${j.series} · الحلقة ${j.episode}` + (j.season > 1 ? ` · الموسم ${j.season}` : '');
+    el.querySelector('.state').textContent = st;
+    for (const [a, t] of acts) {
+      const b = document.createElement('button'); b.textContent = t;
+      b.onclick = () => { b.disabled = true; command({ job: { id: j.id, do: a } }).then(poll).catch(e => { b.disabled = false; toast(e.message, true); }); };
+      el.querySelector('.acts').appendChild(b);
+    }
+    $('jobs').appendChild(el);
+  }
+  if (s.more > 0) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = `و${s.more} غيرها (تشوفها كلها في التلفزيون)`; $('jobs').appendChild(m); }
+  if (s.error && s.error !== render.err) toast('البوكس: ' + s.error, true);
+  render.err = s.error;
+}
+$('clear').onclick = () => command({ clear: 1 }).then(poll);
+
+let timer, last = null, sentAt = 0, pingedAt = 0, autoPings = 0;
+function ago(ms) { const m = Math.round(ms / 60000); return m < 1 ? 'الحين' : m < 60 ? `قبل ${m} دقيقة` : `قبل ${Math.round(m / 60)} ساعة`; }
+
+function showStatus() {
+  if (LOCAL) return;
+  const fresh = last && last.ts > pingedAt - 1000;
+  let t;
+  if (!last) t = pingedAt && Date.now() - pingedAt > 15000 ? 'البوكس ما رد. لو كان طافي أو بدون نت، يحمّل اللي ترسله أول ما يرجع (الطلب يبقى محفوظ ١٢ ساعة).' : 'أتصل بالبوكس…';
+  else if (fresh) t = 'متصل بالبوكس من أي مكان. أضف روابط الحلقات وهو يحمّلها وحدة وحدة.';
+  else t = `آخر تحديث من البوكس ${ago(Date.now() - last.ts)}` + (Date.now() - pingedAt > 15000 ? '، وما رد الحين. يمكن طافي أو بدون نت، واللي ترسله يتحمّل أول ما يرجع.' : '…');
+  if (sentAt && (!last || last.ts < sentAt)) t = 'انرسل الطلب، ينتظر البوكس يستلمه…';
+  $('status').textContent = t;
+}
+
+// من برا: البوكس يرسل حالته على anime-<المفتاح>-s، ونطلبها بـ ping (البوكس يحدّث كل ٢٠ ثانية لمدة ٣ دقايق)
+function ping(manual) {
+  if (!manual && autoPings >= 4) { $('status').textContent += ' اسحب للتحديث أو افتح الصفحة من جديد.'; return; }
+  autoPings = manual ? 0 : autoPings + 1;
+  pingedAt = Date.now();
+  command({ ping: 1 }).catch(() => {});
+  setTimeout(showStatus, 16000);
+}
+
+function startRemote() {
+  $('app').hidden = false;
+  render({ jobs: [], series: [], free: 0 });
+  $('free').textContent = '';
+  const es = new EventSource(NTFY + '-s/sse?since=12h');
+  es.onmessage = (e) => {
+    let st; try { st = JSON.parse(JSON.parse(e.data).message); } catch (x) { return; }
+    if (!st.ts || (last && st.ts < last.ts)) return;
+    last = st; render(st); showStatus();
+  };
+  ping(true);
+  setInterval(() => { if (!document.hidden) ping(false); }, 170000);
+  setInterval(showStatus, 30000);
+}
+
+async function poll() {
+  if (!LOCAL) return;
+  clearTimeout(timer);
+  try {
+    const s = await api('/state');
+    $('status').textContent = 'متصل بالتلفزيون. أضف روابط الحلقات وهو يحمّلها وحدة وحدة.';
+    $('app').hidden = false; render(s);
+  } catch (e) {
+    if (String(e.message) === 'key') { $('status').textContent = 'المفتاح انتهى.'; $('app').hidden = true; $('nokey').hidden = false; return; }
+    $('status').textContent = 'التلفزيون مو متصل. تأكد إن الجوال على نفس الواي فاي وإن البوكس شغّال.';
+  }
+  timer = setTimeout(poll, document.hidden ? 8000 : 2000);
+}
+if (!KEY) { $('status').textContent = ''; $('nokey').hidden = false; }
+else if (LOCAL) poll();
+else startRemote();
+document.addEventListener('visibilitychange', () => { if (!document.hidden && KEY) { if (LOCAL) poll(); else ping(true); } });
+</script>
+</body>
+</html>
