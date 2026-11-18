@@ -104,6 +104,11 @@
 </head>
 <body>
 <header><div class="logo">ア</div><div><h1>انمي</h1></div></header>
+<label for="targetApp">التطبيق</label>
+<select id="targetApp" aria-label="التطبيق">
+  <option value="anime">أنمي</option>
+  <option value="cinema">Cinema TV</option>
+</select>
 <p class="sub" id="status">أتصل بالتلفزيون…</p>
 
 <div class="card" id="usageCard" hidden>
@@ -237,6 +242,14 @@ if (LOCAL && q.get('k')) history.replaceState(null, '', '/');
 if (!LOCAL && KEY && location.hash !== '#' + KEY) history.replaceState(null, '', location.pathname + '#' + KEY);
 const NTFY = 'https://ntfy.sh/anime-' + KEY;
 const $ = (id) => document.getElementById(id);
+$('targetApp').value = 'anime';
+$('targetApp').onchange = () => {
+  const cinema = $('targetApp').value === 'cinema';
+  const key = localStorage.getItem(cinema ? 'cinemaImportKey' : 'animeKey');
+  const page = 'https://nadir-coderlab.github.io/anime/' + (cinema ? 'cinema/' : '');
+  location.assign(page + '?v=cinema15' + (key ? '#' + key : ''));
+};
+
 const api = (path, opts = {}) => fetch(path, { ...opts, headers: { 'X-Key': KEY || '', 'Content-Type': 'application/json' } })
   .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.status); return j; });
 // أمر للبوكس: محلياً بطلب مباشر، ومن برا برسالة ntfy (لو البوكس طافي ينفّذها أول ما يشتغل، خلال ١٢ ساعة)

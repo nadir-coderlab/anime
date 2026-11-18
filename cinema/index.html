@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cinema TV">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="import-icon.png">
+<title>Cinema TV · أضف حلقات</title>
+<style>
+  :root { --bg:#0a0a0c; --card:#17171b; --field:#222228; --text:#f4ead9; --muted:#a9a196; --accent:#ff7a9c; --ok:#7ccf8a; --bad:#ff7a6b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:radial-gradient(120% 60% at 80% 0%, #2a0c1a 0%, var(--bg) 60%); color:var(--text);
+         font:17px/1.5 -apple-system, "SF Arabic", "Geeza Pro", system-ui, sans-serif; min-height:100vh;
+         padding:max(24px, env(safe-area-inset-top)) 18px 48px; }
+  header { display:flex; align-items:center; gap:12px; }
+  .logo { width:44px; height:44px; border-radius:14px; background:linear-gradient(145deg,#ffa3bb,#e0487a); display:grid; place-items:center;
+          box-shadow:0 8px 24px #e0487a55; font-weight:900; color:#1a0810; font-size:22px; }
+  h1 { font-size:26px; margin:0; font-weight:800; }
+  .sub { color:var(--muted); margin:2px 0 20px; font-size:15px; }
+  .card { background:var(--card); border-radius:18px; padding:16px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:var(--muted); margin:12px 2px 6px; }
+  label:first-child { margin-top:0; }
+  input, textarea, select { width:100%; background:var(--field); color:var(--text); border:1px solid #ffffff14; border-radius:12px;
+                    padding:12px 14px; font:inherit; outline:none; }
+  input:focus, textarea:focus, select:focus { border-color:var(--accent); }
+  textarea { min-height:140px; direction:ltr; text-align:left; font-size:14px; line-height:1.6; }
+  .ltr { direction:ltr; text-align:left; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .tabs { display:flex; background:var(--field); border-radius:12px; padding:4px; gap:4px; margin:14px 0 4px; }
+  .tabs button { flex:1; border:0; background:none; color:var(--muted); font:inherit; font-weight:700; padding:9px; border-radius:9px; }
+  .tabs button.on { background:var(--accent); color:#1a0810; }
+  .hint { color:var(--muted); font-size:13px; margin:8px 2px 0; }
+  .go { width:100%; padding:18px; border-radius:16px; border:0; background:var(--accent); color:#1a0810; font:inherit; font-weight:800; font-size:19px; margin-top:16px; }
+  .go:disabled { opacity:.5; }
+  .import-summary { display:grid; grid-template-columns:76px minmax(0, 1fr); align-items:start; gap:12px; margin-top:16px; }
+  .import-summary.no-cover { grid-template-columns:1fr; }
+  .import-summary img { display:block; width:76px; aspect-ratio:2/3; object-fit:cover; border-radius:8px; }
+  .import-summary img[hidden] { display:none; }
+  .import-summary h2, .import-summary p { margin:0 0 6px; }
+  .import-summary p { font-size:14px; }
+  .import-detail { margin-top:16px; }
+  .import-facts { margin:8px 0 0; font-size:14px; }
+  .import-facts div { display:grid; grid-template-columns:minmax(100px, 1fr) 2fr; gap:8px; padding:5px 0; }
+  .import-facts dt { color:var(--muted); }
+  .import-facts dd { margin:0; }
+  #importMessage[data-error] { color:var(--bad); }
+  .preview { font-size:13px; color:var(--muted); margin-top:10px; direction:ltr; text-align:left; max-height:110px; overflow:auto; white-space:pre; }
+  details summary { color:var(--muted); font-size:14px; margin-top:14px; }
+  h2 { font-size:18px; margin:26px 2px 10px; display:flex; justify-content:space-between; align-items:baseline; }
+  h2 small { font-size:13px; color:var(--muted); font-weight:500; }
+  h2 button { background:none; border:0; color:var(--accent); font:inherit; font-size:14px; }
+  .job { background:var(--card); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+  .row { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+  .name { font-weight:700; }
+  .state { color:var(--muted); font-size:13px; }
+  .bar { height:5px; background:#ffffff1c; border-radius:3px; margin-top:8px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--accent); transition:width .5s; }
+  .done .state { color:var(--ok); } .done .bar i { background:var(--ok); }
+  .failed .state { color:var(--bad); }
+  .acts button { background:#ffffff14; color:var(--text); border:0; border-radius:9px; padding:6px 10px; font:inherit; font-size:13px; margin-inline-start:6px; }
+  .series { background:var(--card); border-radius:14px; margin-bottom:10px; overflow:hidden; }
+  .series > .head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:13px 14px; cursor:pointer; }
+  .series .title { font-weight:800; }
+  .series .meta { color:var(--muted); font-size:13px; }
+  .series .chev { color:var(--muted); transition:transform .2s; }
+  .series.open .chev { transform:rotate(-90deg); }
+  .series .body { display:none; border-top:1px solid #ffffff10; padding:6px 14px 12px; }
+  .series.open .body { display:block; }
+  .ep { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #ffffff0a; font-size:15px; }
+  .ep:last-child { border-bottom:0; }
+  .ep .w { color:var(--ok); font-size:13px; }
+  .ep .sz { color:var(--muted); font-size:13px; }
+  .bulk { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 6px; }
+  .del { background:#ff7a6b22; color:var(--bad); border:0; border-radius:9px; padding:7px 11px; font:inherit; font-size:13px; font-weight:700; }
+  .del:disabled { opacity:.45; }
+  .gone { opacity:.4; pointer-events:none; }
+  .msg { background:var(--card); border-radius:16px; padding:18px; color:var(--muted); }
+  .toast { position:fixed; inset-inline:18px; bottom:max(18px, env(safe-area-inset-bottom)); background:var(--ok); color:#0b1a0e; padding:14px 16px;
+           border-radius:14px; font-weight:700; transform:translateY(150%); transition:transform .3s; }
+  .toast.show { transform:none; } .toast.bad { background:var(--bad); color:#1a0806; }
+</style>
+</head>
+<body>
+<header><div><h1>Cinema TV</h1></div></header>
+<label for="targetApp">التطبيق</label>
+<select id="targetApp" aria-label="التطبيق">
+  <option value="anime">أنمي</option>
+  <option value="cinema">Cinema TV</option>
+</select>
+<p class="sub" id="status">أتصل بالتلفزيون…</p>
+<div id="app" hidden>
+  <div class="card" id="importCard">
+    <form id="importForm">
+      <label for="titleUrl">رابط العمل أو الحلقة</label>
+      <input id="titleUrl" class="ltr" type="text" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://…" required>
+      <p class="hint">الصق الرابط من فاصل. الاسم والغلاف والحلقات تطلع تلقائيًا.</p>
+      <button class="go" id="inspectTitle" type="submit">عرض التفاصيل</button>
+    </form>
+    <p class="hint" id="importMessage" role="status"></p>
+    <div id="importResult" hidden>
+      <div id="importSummary" class="import-summary no-cover">
+        <img id="importCover" alt="" referrerpolicy="no-referrer" hidden>
+        <div>
+          <h2 id="importName" dir="auto"></h2>
+          <p class="hint" id="importMeta"></p>
+          <p id="importOverview" dir="auto"></p>
+        </div>
+      </div>
+      <details id="importFacts" hidden><summary>تفاصيل العمل</summary><dl id="importFields" class="import-facts"></dl></details>
+      <div class="import-detail" id="importSeasonBox">
+        <label for="importSeason" id="importSeasonLabel">اختر الموسم</label>
+        <select id="importSeason"></select>
+      </div>
+      <div class="import-detail" id="episodePicker">
+        <label for="importChoice" id="episodePrompt">كم حلقة تبغى تحمّل؟</label>
+        <select id="importChoice">
+          <option value="">اختر طريقة التحديد</option>
+          <option value="single">حلقة واحدة</option>
+          <option value="range">من حلقة إلى حلقة</option>
+          <option value="all">جميع الحلقات</option>
+        </select>
+        <div id="episodeSingleBox" hidden>
+          <label for="episodeSingle">رقم الحلقة</label>
+          <select id="episodeSingle"></select>
+        </div>
+        <div id="episodeRangeBox" hidden>
+          <div class="two">
+            <div><label for="episodeFrom">من حلقة</label><select id="episodeFrom"></select></div>
+            <div><label for="episodeTo">إلى حلقة</label><select id="episodeTo"></select></div>
+          </div>
+        </div>
+      </div>
+      <div class="import-detail">
+        <label for="importQuality">الجودة المتاحة</label>
+        <select id="importQuality" disabled><option value="">حدد الحلقات لعرض الجودات</option></select>
+        <p class="hint" id="qualityMessage" role="status"></p>
+      </div>
+      <p class="hint" id="selectionSummary" aria-live="polite"></p>
+      <button class="go" id="downloadImport" type="button" disabled>تحميل الاختيار</button>
+    </div>
+  </div>
+
+<h2>التحميلات <span><small id="free"></small> <button id="clear" hidden>امسح الخالصة</button></span></h2>
+<div id="jobs"></div>
+</div>
+<div id="nokey" class="msg" hidden>افتح Cinema TV ← الإعدادات ← استيراد عن بعد، وامسح الباركود لربط جوالك.</div>
+<div id="toast" class="toast"></div>
+<script>
+const LOCAL = location.port === '8767';
+const q = new URLSearchParams(location.search);
+const hashKey = (location.hash.match(/^#([a-f0-9]{16,})$/) || [])[1];
+if (q.get('k') || hashKey) localStorage.setItem('cinemaImportKey', q.get('k') || hashKey);
+const KEY = localStorage.getItem('cinemaImportKey');
+if (LOCAL && q.get('k')) history.replaceState(null, '', '/');
+// نخلي المفتاح في الرابط عشان «إضافة إلى الشاشة الرئيسية» تحفظه
+if (!LOCAL && KEY && location.hash !== '#' + KEY) history.replaceState(null, '', location.pathname + '#' + KEY);
+const NTFY = 'https://ntfy.sh/cinema-import-' + KEY;
+const $ = (id) => document.getElementById(id);
+$('targetApp').value = 'cinema';
+$('targetApp').onchange = () => {
+  const cinema = $('targetApp').value === 'cinema';
+  const key = localStorage.getItem(cinema ? 'cinemaImportKey' : 'animeKey');
+  const page = 'https://nadir-coderlab.github.io/anime/' + (cinema ? 'cinema/' : '');
+  location.assign(page + '?v=cinema15' + (key ? '#' + key : ''));
+};
+
+const api = (path, opts = {}) => fetch(path, { ...opts, headers: { 'X-Key': KEY || '', 'Content-Type': 'application/json' } })
+  .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.status); return j; });
+// أمر للبوكس: محلياً بطلب مباشر، ومن برا برسالة ntfy (لو البوكس طافي ينفّذها أول ما يشتغل، خلال ١٢ ساعة)
+function command(msg) {
+  if (LOCAL) {
+    if (msg.job) return api(`/job?id=${msg.job.id}&do=${msg.job.do}`, { method: 'POST' });
+    if (msg.clear) return api('/clear', { method: 'POST' });
+    return Promise.resolve({});
+  }
+  return fetch(NTFY, { method: 'POST', body: JSON.stringify(msg) }).then(r => { if (!r.ok) throw new Error('ntfy ' + r.status); return {}; });
+}
+function toast(t, bad) { const e = $('toast'); e.textContent = t; e.className = 'toast show' + (bad ? ' bad' : ''); clearTimeout(e._t); e._t = setTimeout(() => e.className = 'toast', 3500); }
+const mb = (b) => b >= 1073741824 ? (b / 1073741824).toFixed(2) + ' جيجا' : (b / 1048576).toFixed(0) + ' ميجا';
+
+let importDetails = null;
+let importBusy = false;
+let qualityBusy = false;
+let qualityGeneration = 0;
+const qualityCache = new Map();
+const arabicNumber = new Intl.NumberFormat('ar-SA', {useGrouping: false});
+const ar = n => arabicNumber.format(n);
+
+function importMessage(text, error = false) {
+  $('importMessage').textContent = text;
+  $('importMessage').toggleAttribute('data-error', error);
+}
+
+const pendingImports = new Map();
+
+function findImportUrl(value) {
+  const source = value.replace(/[\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g, '');
+  for (const match of source.matchAll(/https:\/\/[^\s<>"'«»]+/gi)) {
+    let url;
+    try { url = new URL(match[0].replace(/[)\]}.,!?،؛؟]+$/u, '')); } catch { continue; }
+    if (!['faselplus.me', 'www.faselplus.me'].includes(url.hostname) || url.username || url.password || url.port || !/^\/(title|watch)\/\d+\/?$/.test(url.pathname)) continue;
+    const params = new URLSearchParams();
+    if (url.pathname.startsWith('/watch/')) {
+      for (const name of ['season_id', 'episode_id']) {
+        const id = url.searchParams.get(name);
+        if (/^\d+$/.test(id || '')) params.set(name, id);
+      }
+    }
+    return url.origin + url.pathname + (params.size ? '?' + params.toString() : '');
+  }
+  return '';
+}
+
+function importRequest(action, body) {
+  if (LOCAL) return api(`/import/${action}`, {method: 'POST', body: JSON.stringify(body)});
+  const id = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+  const request = {import: {id, action, body}};
+  if (new TextEncoder().encode(JSON.stringify(request)).length > 3800) {
+    return Promise.reject(Error('اختيار الحلقات كبير. أرسلها على دفعتين.'));
+  }
+  return new Promise((resolve, reject) => {
+    let sent = false;
+    const timer = setTimeout(() => {
+      pendingImports.delete(id);
+      if (sent && action === 'download') resolve({waiting: true});
+      else reject(Error('الشاشة ما ردّت. تأكد إنها شغّالة ومتّصلة بالإنترنت، ثم جرّب.'));
+    }, 90000);
+    const finish = (fn, value) => { clearTimeout(timer); pendingImports.delete(id); fn(value); };
+    pendingImports.set(id, {
+      resolve: result => finish(resolve, result),
+      reject: error => finish(reject, error),
+    });
+    command(request).then(() => { sent = true; }).catch(() => {
+      finish(reject, Error('تعذّر إرسال الطلب. تحقق من اتصال الجوال بالإنترنت.'));
+    });
+  });
+}
+
+async function receiveImportReply(message, attachment) {
+  const pending = pendingImports.get(message.importReply);
+  if (!pending) return;
+  try {
+    if (attachment) {
+      const url = new URL(attachment.url);
+      if (url.origin !== 'https://ntfy.sh') throw Error('Invalid attachment');
+      const response = await fetch(url.href);
+      if (!response.ok) throw Error('Unavailable attachment');
+      const payload = await response.json();
+      if (payload.importReply !== message.importReply) throw Error('Mismatched reply');
+      message = payload;
+    }
+    if (message.error) pending.reject(Error(message.error));
+    else if (message.result) pending.resolve(message.result);
+    else throw Error('Missing result');
+  } catch { pending.reject(Error('تعذّر استلام تفاصيل العمل. جرّب مرة ثانية.')); }
+}
+
+function selectedImportEpisodes() {
+  if (!importDetails) return [];
+  const available = importDetails.episodes.map(ep => ep.number);
+  const choice = $('importChoice').value;
+  if (importDetails.movie || choice === 'all') return available;
+  if (choice === 'single') return available.filter(number => String(number) === $('episodeSingle').value);
+  if (choice !== 'range' || !$('episodeFrom').value || !$('episodeTo').value) return [];
+  const from = Number($('episodeFrom').value), to = Number($('episodeTo').value);
+  return available.filter(number => number >= from && number <= to);
+}
+
+function showQualities(qualities) {
+  const field = $('importQuality');
+  const previous = field.value;
+  field.replaceChildren(new Option('اختر الجودة', ''), ...qualities.map(q =>
+    new Option((q.id === 'original' ? 'الأصلية · original' : q.id) + (q.size ? ` · ${q.size}` : ''), q.id)));
+  if (qualities.some(q => q.id === previous)) field.value = previous;
+  field.disabled = !qualities.length;
+}
+
+async function refreshQualities() {
+  if (!importDetails || importBusy) return;
+  const episodes = selectedImportEpisodes();
+  const episode = episodes[0] ?? importDetails.qualityEpisode;
+  const generation = ++qualityGeneration;
+  const details = importDetails;
+  qualityBusy = true;
+  $('importQuality').disabled = true;
+  $('qualityMessage').textContent = 'أقرأ الجودات المتاحة…';
+  showImportSelection();
+  try {
+    let qualities = qualityCache.get(episode);
+    if (!qualities) {
+      const result = await importRequest('qualities', {url: details.url, season: details.season, episode});
+      qualities = result.qualities;
+    }
+    if (generation !== qualityGeneration || details !== importDetails) return;
+    qualityCache.set(episode, qualities);
+    showQualities(qualities);
+    $('qualityMessage').textContent = qualities.length ?
+      (details.movie ? 'جودات التنزيل المتاحة للفيلم.' : `الجودات المتاحة للحلقة ${ar(episode)}. تُستخدم الجودة المختارة للحلقات المحددة.`) :
+      'لا توجد جودات تنزيل متاحة لهذا العنصر.';
+  } catch (error) {
+    if (generation !== qualityGeneration || details !== importDetails) return;
+    showQualities([]);
+    $('qualityMessage').textContent = error.message;
+  } finally {
+    if (generation === qualityGeneration && details === importDetails) {
+      qualityBusy = false;
+      showImportSelection();
+    }
+  }
+}
+
+function episodeOptions(field, episodes) {
+  const previous = field.value;
+  field.replaceChildren(new Option('اختر الحلقة', ''), ...episodes.map(ep => new Option(`الحلقة ${ar(ep.number)}`, ep.number)));
+  if (episodes.some(ep => String(ep.number) === previous)) field.value = previous;
+}
+
+function setRangeEnd() {
+  const from = $('episodeFrom').value;
+  episodeOptions($('episodeTo'), from && importDetails ? importDetails.episodes.filter(ep => ep.number >= Number(from)) : []);
+}
+
+function showImportSelection() {
+  const choice = $('importChoice').value;
+  $('episodeSingleBox').hidden = choice !== 'single';
+  $('episodeRangeBox').hidden = choice !== 'range';
+  $('episodeTo').disabled = !$('episodeFrom').value;
+  const episodes = selectedImportEpisodes();
+  $('downloadImport').disabled = importBusy || qualityBusy || !episodes.length || !$('importQuality').value;
+  $('downloadImport').textContent = $('importQuality').value ?
+    `تحميل ${importDetails?.movie ? 'الفيلم' : 'الاختيار'} · ${$('importQuality').value === 'original' ? 'الأصلية' : $('importQuality').value}` : 'تحميل الاختيار';
+  $('selectionSummary').textContent = !episodes.length || importDetails.movie ? '' :
+    episodes.length === 1 ? `المحدد الحلقة ${ar(episodes[0])}` :
+      `${choice === 'all' ? 'جميع الحلقات' : `من الحلقة ${ar(episodes[0])} إلى ${ar(episodes[episodes.length - 1])}`} · ${ar(episodes.length)} حلقة`;
+}
+
+function showImport(details) {
+  qualityGeneration++;
+  qualityBusy = false;
+  qualityCache.clear();
+  qualityCache.set(details.qualityEpisode, details.qualities || []);
+  importDetails = details;
+  $('importQuality').value = '';
+  showQualities(details.qualities || []);
+  $('qualityMessage').textContent = 'اختر الجودة التي تريد تنزيلها.';
+  $('importName').textContent = details.name;
+  $('importMeta').textContent = [details.type, details.genres, details.rating].filter(Boolean).join(' · ');
+  $('importOverview').textContent = details.overview;
+  $('importFields').replaceChildren(...(details.details || []).map(field => {
+    const row = document.createElement('div'), name = document.createElement('dt'), value = document.createElement('dd');
+    name.textContent = field.label;
+    value.textContent = field.value;
+    row.append(name, value);
+    return row;
+  }));
+  $('importFacts').hidden = !$('importFields').childElementCount;
+  const cover = $('importCover');
+  cover.hidden = !/^https:\/\//i.test(details.poster);
+  $('importSummary').classList.toggle('no-cover', cover.hidden);
+  if (!cover.hidden) cover.src = details.poster;
+  else cover.removeAttribute('src');
+  $('importSeason').replaceChildren(...details.seasons.map(season => new Option(
+    `الموسم ${ar(season.number)}${season.count ? ` · ${ar(season.count)} حلقة` : ''}`, season.id)));
+  $('importSeason').value = details.season;
+  $('importSeasonBox').hidden = details.movie || !details.seasons.length;
+  $('importSeasonLabel').textContent = `اختر الموسم · المواسم المتاحة ${ar(details.seasons.length)}`;
+  $('episodePicker').hidden = details.movie;
+  $('episodePrompt').textContent = `عدد الحلقات المتاحة ${ar(details.episodes.length)} · كم حلقة تبغى تحمّل؟`;
+  const episode = details.suggestedEpisode ?? (details.episodes.length === 1 ? details.episodes[0].number : null);
+  $('importChoice').value = episode == null ? '' : 'single';
+  $('episodeFrom').value = '';
+  episodeOptions($('episodeSingle'), details.episodes);
+  $('episodeSingle').value = episode == null ? '' : String(episode);
+  episodeOptions($('episodeFrom'), details.episodes);
+  setRangeEnd();
+  $('importResult').hidden = false;
+  showImportSelection();
+}
+
+async function inspectTitle(value, season = '') {
+  if (importBusy) return;
+  const url = findImportUrl(value);
+  if (!url) {
+    importMessage('ما لقينا رابط عمل أو حلقة من فاصل في النص. لألصق رابط صفحة العمل أو الحلقة.', true);
+    return;
+  }
+  if (!season) $('titleUrl').value = url;
+  qualityGeneration++;
+  qualityBusy = false;
+  const previous = season ? importDetails : null;
+  importBusy = true;
+  if (!previous) {
+    importDetails = null;
+    $('importResult').hidden = true;
+  }
+  $('inspectTitle').disabled = true;
+  $('titleUrl').disabled = true;
+  $('importSeason').disabled = true;
+  $('importChoice').disabled = true;
+  $('downloadImport').disabled = true;
+  importMessage(previous ? '' : 'أقرأ تفاصيل الرابط…');
+  if (previous) $('selectionSummary').textContent = 'أقرأ حلقات الموسم…';
+  let seasonError = '';
+  try {
+    showImport(await importRequest('preview', {url, season}));
+    importMessage('');
+  } catch (error) {
+    if (previous) {
+      $('importSeason').value = previous.season;
+      seasonError = error.message;
+    } else importMessage(error.message, true);
+  }
+  finally {
+    importBusy = false;
+    $('inspectTitle').disabled = false;
+    $('titleUrl').disabled = false;
+    $('importSeason').disabled = false;
+    $('importChoice').disabled = false;
+    showImportSelection();
+    if (seasonError) $('selectionSummary').textContent = seasonError;
+  }
+}
+
+$('importCover').onerror = () => { $('importCover').hidden = true; $('importSummary').classList.add('no-cover'); };
+$('importForm').onsubmit = event => { event.preventDefault(); inspectTitle($('titleUrl').value); };
+$('titleUrl').oninput = () => { qualityGeneration++; qualityBusy = false; importDetails = null; $('importResult').hidden = true; importMessage(''); };
+$('titleUrl').onpaste = event => {
+  const url = findImportUrl(event.clipboardData?.getData('text/plain') || '');
+  if (url) {
+    event.preventDefault();
+    inspectTitle(url);
+  } else {
+    setTimeout(() => { if ($('titleUrl').value.trim()) inspectTitle($('titleUrl').value); }, 0);
+  }
+};
+$('importSeason').onchange = () => { if (importDetails) inspectTitle(importDetails.url, $('importSeason').value); };
+$('importChoice').onchange = () => { showImportSelection(); refreshQualities(); };
+$('episodeSingle').onchange = () => { showImportSelection(); refreshQualities(); };
+$('episodeFrom').onchange = () => { setRangeEnd(); showImportSelection(); refreshQualities(); };
+$('episodeTo').onchange = () => { showImportSelection(); refreshQualities(); };
+$('importQuality').onchange = showImportSelection;
+$('downloadImport').onclick = async () => {
+  const episodes = selectedImportEpisodes();
+  const quality = $('importQuality').value;
+  if (!episodes.length || importBusy || qualityBusy || !quality) return;
+  const {url, season, movie} = importDetails;
+  importBusy = true;
+  $('downloadImport').disabled = true;
+  $('inspectTitle').disabled = true;
+  $('titleUrl').disabled = true;
+  $('importSeason').disabled = true;
+  importMessage('أضيف اختيارك لطابور التحميل…');
+  try {
+    const result = await importRequest('download', {url, season, episodes, quality});
+    if (result.waiting) { importMessage('انرسل الطلب. راقب التحميلات لما تتصل الشاشة.'); return; }
+    const message = result.added ? (movie ? 'انضاف الملف لطابور التحميل.' : `انضاف ${ar(result.added)} للطابور.`) : 'الاختيار موجود بالفعل.';
+    importMessage(message + (result.added && result.skipped ? ` الموجود مسبقًا ${ar(result.skipped)}.` : ''));
+    if (LOCAL) poll();
+  } catch (error) { importMessage(error.message, true); }
+  finally {
+    importBusy = false;
+    $('inspectTitle').disabled = false;
+    $('titleUrl').disabled = false;
+    $('importSeason').disabled = false;
+    showImportSelection();
+  }
+};
+
+const STATE = { queued: 'بالدور', paused: 'موقّف', failed: 'ما تحمّلت', done: 'تحمّلت' };
+function render(s) {
+  $('free').textContent = 'فاضي ' + mb(s.free);
+  const jobs = s.jobs.slice().sort((a, b) => (a.status === 'done') - (b.status === 'done') || a.added - b.added);
+  $('clear').hidden = !jobs.some(j => j.status === 'done');
+  $('jobs').innerHTML = jobs.length ? '' : '<div class="msg">ما فيه تحميلات.</div>';
+  for (const j of jobs) {
+    const pct = j.total > 0 ? Math.floor(j.done * 100 / j.total) : 0;
+    let st = STATE[j.status] || '';
+    if (j.status === 'downloading') st = (j.total > 0 ? pct + '٪ · ' + mb(j.done) + ' من ' + mb(j.total) : mb(j.done)) + (j.speed > 0 ? ' · ' + mb(j.speed) + '/ث' : '') + (j.error ? ' · ' + j.error : '');
+    if (j.status === 'failed') st += ': ' + (j.error || '');
+    if (j.status === 'done') st += ' · ' + mb(j.total);
+    const acts = [];
+    if (j.status === 'downloading' || j.status === 'queued') acts.push(['pause', 'وقّف']);
+    if (j.status === 'paused') acts.push(['resume', 'كمّل']);
+    if (j.status === 'failed') acts.push(['retry', 'جرّب ثاني']);
+    acts.push(['remove', j.status === 'done' ? 'شيل' : 'ألغِ']);
+    const el = document.createElement('div');
+    el.className = 'job ' + j.status;
+    el.innerHTML = `<div class="row"><div><div class="name"></div><div class="state"></div></div><div class="acts"></div></div>` +
+      (j.status === 'downloading' || (j.status === 'paused' && j.total > 0) ? `<div class="bar"><i style="width:${pct}%"></i></div>` : '');
+    el.querySelector('.name').textContent = j.series + (j.movie ? '' : ` · الحلقة ${j.episode} · الموسم ${j.season}`) + (j.quality ? ` · ${j.quality}` : '');
+    el.querySelector('.state').textContent = st;
+    for (const [a, t] of acts) {
+      const b = document.createElement('button'); b.textContent = t;
+      b.onclick = () => { b.disabled = true; command({ job: { id: j.id, do: a } }).then(poll).catch(e => { b.disabled = false; toast(e.message, true); }); };
+      el.querySelector('.acts').appendChild(b);
+    }
+    $('jobs').appendChild(el);
+  }
+  if (s.more > 0) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = `و${s.more} غيرها (تشوفها كلها في التلفزيون)`; $('jobs').appendChild(m); }
+  if (s.error && s.error !== render.err) toast('البوكس: ' + s.error, true);
+  render.err = s.error;
+}
+$('clear').onclick = () => command({ clear: 1 }).then(poll);
+
+let timer, last = null, sentAt = 0, pingedAt = 0, autoPings = 0;
+function ago(ms) { const m = Math.round(ms / 60000); return m < 1 ? 'الحين' : m < 60 ? `قبل ${m} دقيقة` : `قبل ${Math.round(m / 60)} ساعة`; }
+
+function showStatus() {
+  if (LOCAL) return;
+  const fresh = last && last.ts > pingedAt - 1000;
+  let t;
+  if (!last) t = pingedAt && Date.now() - pingedAt > 15000 ? 'البوكس ما رد. لو كان طافي أو بدون نت، يحمّل اللي ترسله أول ما يرجع (الطلب يبقى محفوظ ١٢ ساعة).' : 'أتصل بالبوكس…';
+  else if (fresh) t = 'متصل بالتلفزيون من خارج البيت.';
+  else t = `آخر تحديث من البوكس ${ago(Date.now() - last.ts)}` + (Date.now() - pingedAt > 15000 ? '، وما رد الحين. يمكن طافي أو بدون نت، واللي ترسله يتحمّل أول ما يرجع.' : '…');
+  if (sentAt && (!last || last.ts < sentAt)) t = 'انرسل الطلب، ينتظر البوكس يستلمه…';
+  $('status').textContent = t;
+}
+
+// من برا: البوكس يرسل حالته على anime-<المفتاح>-s، ونطلبها بـ ping (البوكس يحدّث كل ٢٠ ثانية لمدة ٣ دقايق)
+function ping(manual) {
+  if (!manual && autoPings >= 4) { $('status').textContent += ' اسحب للتحديث أو افتح الصفحة من جديد.'; return; }
+  autoPings = manual ? 0 : autoPings + 1;
+  pingedAt = Date.now();
+  command({ping:1}).catch(() => {});
+  setTimeout(showStatus, 16000);
+}
+
+function startRemote() {
+  $('app').hidden = false;
+  render({ jobs: [], series: [], free: 0 });
+  $('free').textContent = '';
+  const es = new EventSource(NTFY + '-s/sse?since=12h');
+  es.onmessage = (e) => {
+    let o, st; try { o = JSON.parse(e.data); st = JSON.parse(o.message); } catch (x) { return; }
+    if (st.importReply) { receiveImportReply(st, o.attachment); return; }
+    if (!st.ts || (last && st.ts < last.ts)) return;
+    last = st; render(st); showStatus();
+  };
+  ping(true);
+  setInterval(() => { if (!document.hidden) ping(false); }, 170000);
+  setInterval(showStatus, 30000);
+}
+
+async function poll() {
+  if (!LOCAL) return;
+  clearTimeout(timer);
+  try {
+    const s = await api('/state');
+    $('status').textContent = 'متصل بالتلفزيون.';
+    $('app').hidden = false; render(s);
+  } catch (e) {
+    if (String(e.message) === 'key') { $('status').textContent = 'المفتاح انتهى.'; $('app').hidden = true; $('nokey').hidden = false; return; }
+    $('status').textContent = 'التلفزيون مو متصل. تأكد إن الجوال على نفس الواي فاي وإن البوكس شغّال.';
+  }
+  timer = setTimeout(poll, document.hidden ? 8000 : 2000);
+}
+if (!KEY) { $('status').textContent = ''; $('nokey').hidden = false; }
+else if (LOCAL) poll();
+else startRemote();
+document.addEventListener('visibilitychange', () => { if (!document.hidden && KEY) { if (LOCAL) poll(); else ping(true); } });
+</script>
+</body>
+</html>
